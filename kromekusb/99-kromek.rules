@@ -1,0 +1,7 @@
+# Kromek devices default to hid devices. Create a rule that unbinds the
+# hid driver and binds the Kromek driver module to the device
+SUBSYSTEM=="usb", ATTRS{idVendor}=="04d8", RUN="/bin/sh -c 'echo -n $id:1.0 > /sys/bus/usb/drivers/usbhid/unbind;echo -n $id:1.0 > /sys/bus/usb/drivers/kromek/bind'" 
+# Because the device is removed and re-added as a Kromek device in the
+# previous entry the permissions mode must be applied separately once
+# the device has been re-added. Give permissions for all users
+SUBSYSTEM=="usbmisc", ATTRS{idVendor}=="04d8", MODE="0666"
