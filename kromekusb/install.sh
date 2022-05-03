@@ -1,7 +1,7 @@
 #!/bin/sh
 
-## ensure kernel headers are available
-sudo apt-get install linux-headers-generic
+## ensure kernel headers are available and libudev headers
+sudo apt-get install linux-headers-generic libudev-dev
 
 ## ensure signing key exists
 dst=/lib/modules/$(uname -r)/build/certs
