@@ -8,12 +8,11 @@
 #include "SpectrometerDriver.h"
 
 /**
- * @brief Node converts occupancy grid map to jpg (rviz background color), or optionally png (transparent background)
+ * @brief Node publishes topics from kromek radiation sensor
  */
 
 const int detChannels = 4096;
 const int annChannels = 100;
-const int integrationSeconds = 5;
 
 void stdcall errorCallback(void *pCallbackObject, unsigned int deviceID, int errorCode, const char *pMessage)
 {
@@ -28,8 +27,10 @@ public:
     KromekRosNode()
         : nh_(), pn_("~")
     {
-        kromek_pub = nh_.advertise<std_msgs::Int64>("kromek/sum", 1);
-        kromek_raw = nh_.advertise<std_msgs::UInt32MultiArray>("kromek/raw", 1);
+        sum_pub = nh_.advertise<std_msgs::Int64>("kromek/sum", 1);
+        info_pub = nh_.advertise<std_msgs::UInt32MultiArray>("kromek/info", 1);
+        raw_pub = nh_.advertise<std_msgs::UInt32MultiArray>("kromek/raw", 1);
+        pn_.param("integration_seconds", integrationSeconds, 1);
     }
 
     ~KromekRosNode()
@@ -56,9 +57,20 @@ private:
             numDets += 1;
         }
 
-        // uint32_t data[numDets * annChannels];
-        std_msgs::MultiArrayLayout layout;
-        std_msgs::MultiArrayDimension dimensions[2];
+        std_msgs::MultiArrayLayout infoLayout, layout;
+        std_msgs::MultiArrayDimension infodim[1], dimensions[2];
+
+        infodim[0].label = "detectors";
+        infodim[0].size = numDets;
+        infodim[0].stride = numDets;
+        infoLayout.dim.push_back(infodim[0]);
+        infoMsg.layout = infoLayout;
+        infoMsg.data.assign(numDets, 0);
+        for (auto iter = detMap.begin(); iter != detMap.end(); ++iter){
+            infoMsg.data[iter->second] = iter->first;
+            std::cout << "[" << iter->first << ","
+                        << iter->second << "]\n";
+        }
 
         dimensions[0].label = "detectors";
         dimensions[0].size = numDets;
@@ -85,7 +97,7 @@ private:
 
             sleep(integrationSeconds);
 
-            // Start measurement on all detectors
+            // Collect measurement on all detectors
             while ((detectorID = kr_GetNextDetector(detectorID)))
             {
                 kr_StopDataAcquisition(detectorID);
@@ -94,64 +106,56 @@ private:
 
                 sumMsg.data = sumMsg.data + counts;
 
-                auto it = detMap.find(detectorID);
+                auto detector = detMap.find(detectorID);
 
-                int det = it->second;
+                int detIndex = detector->second;
                 
-                rebinHist(histogram, gridMsg.data, det, detChannels, annChannels);
-
-                // for (int i = 0; i < annChannels; i++)
-                // {
-                //     data[det*annChannels + i] = smlhistogram[i];
-                // }
+                rebinHist(detector->second, histogram);
 
                 kr_ClearAcquiredData(detectorID);
             }
 
-            kromek_pub.publish(sumMsg);
+            sum_pub.publish(sumMsg);
 
-            kromek_raw.publish(gridMsg);
+            raw_pub.publish(gridMsg);
 
-            // // std::cout << "total counts: " << totalCounts << std::endl;
-            // for (int i = 0; i < numDets; i++)
-            // {
-            //     for (int j = 0; j < annChannels; j++)
-            //     {
-            //         // std::cout << imageResult[i][j] << " ";
-            //     }
-            // }
-            // // std::cout << std::endl;
+            info_pub.publish(infoMsg);
+
+            // std::cout << "total counts: " << sumMsg.data << std::endl;
         }
     }
  
-    void rebinHist(unsigned int *oldArr, std::vector<unsigned int> data, const int detectorIndex, const int oldLength, const int newLength)
+    void rebinHist(unsigned int detIndex, unsigned int * oldArr)
     {
-        int nBinsAccumulate = oldLength / newLength;
-
-        for (int i = 0; i < newLength; i++)
+        int nBinsAccumulate = detChannels / annChannels;
+        
+        for (int i = 0; i < annChannels; i++)
         {
-            int index = detectorIndex * newLength + i;
-
-            data[index] = 0;
+            uint32_t index = detIndex * annChannels + i;
+            
+            gridMsg.data[index] = 0;
 
             for (int j = 0; j < nBinsAccumulate; j++)
             {
-                data[index] += oldArr[i * nBinsAccumulate + j];
+                gridMsg.data[index] += oldArr[i * nBinsAccumulate + j];
             }
         }
     }
 
-    ros::Publisher kromek_pub, kromek_raw;
+    ros::Publisher sum_pub, raw_pub, info_pub;
     ros::NodeHandle nh_;
     ros::NodeHandle pn_;
+
     std_msgs::Int64 sumMsg;
     std_msgs::UInt32MultiArray gridMsg;
+    std_msgs::UInt32MultiArray infoMsg;
 
-    unsigned int detectorID = 0;
     unsigned int histogram[detChannels];
+    unsigned int detectorID = 0;
     unsigned int counts;
     unsigned int realtime;
     unsigned int livetime;
+    int integrationSeconds;
     std::map<int, int> detMap;
 };
 

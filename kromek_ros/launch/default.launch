@@ -3,6 +3,7 @@
 <launch>
 
     <node pkg="kromek_ros" type="kromek_ros_node" name="kromek_ros_node">
+        <param name="integration_seconds" value="1"/>
     </node>
 
 </launch>
