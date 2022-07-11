@@ -12,7 +12,7 @@ The ROS driver requires `spectrometer_driver` which needs `kromek_driver` which 
 
 - /kromek/raw: outputs a std_msgs/UInt32MultiArray message with hit counts in 100 bins for each detector attached.
 - /kromek/info: outputs a std_msgs/UInt32MultiArray message with an array of device serial numbers.
-- /kromel/sum: outputs a std_msgs/Int64 with the sum of hit counts of all detectors.
+- /kromek/sum: outputs a std_msgs/Int64 with the sum of hit counts of all detectors.
 
-By default detectors sense for 1 seconds, so these messages are output every 1 seconds.
+By default detectors sense for 1 second, so these messages are output every 1 seconds.
 The `integration_seconds` param can be set in the launch file.
